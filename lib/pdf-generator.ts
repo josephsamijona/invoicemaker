@@ -33,10 +33,20 @@ interface QuoteData {
   total: number
 }
 
+interface PaymentMethod {
+  id: string
+  type: string
+  label: string
+  details: string
+  enabled: boolean
+}
+
 interface InvoiceData extends Omit<QuoteData, "quoteNumber" | "validUntil"> {
   invoiceNumber: string
   dueDate: string
   status: string
+  showPaymentInfo: boolean
+  paymentMethods: PaymentMethod[]
 }
 
 // Function to load image as base64
@@ -383,29 +393,44 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
   doc.text("Total:", 140, totalY)
   doc.text(`$${data.total.toFixed(2)}`, 175, totalY)
 
-  // Payment information
-  doc.setTextColor(COLORS.text)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(12)
-  doc.text("Payment Information:", 20, totalY + 20)
+  // Payment information (only if enabled and has enabled methods)
+  if (data.showPaymentInfo) {
+    const enabledMethods = data.paymentMethods.filter((method) => method.enabled)
 
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
-  doc.text("Please remit payment within 30 days of invoice date.", 20, totalY + 28)
-  doc.text("Wire Transfer: Contact us for banking details", 20, totalY + 33)
-  doc.text("PayPal: jhbridgetranslation@gmail.com", 20, totalY + 38)
-  doc.text("Check: Make payable to JH Bridge Translation", 20, totalY + 43)
+    if (enabledMethods.length > 0) {
+      doc.setTextColor(COLORS.text)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(12)
+      doc.text("Payment Information:", 20, totalY + 20)
+
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(10)
+      doc.text("Please remit payment within 30 days of invoice date.", 20, totalY + 28)
+
+      let paymentY = totalY + 35
+      enabledMethods.forEach((method) => {
+        doc.text(`${method.label}: ${method.details}`, 20, paymentY)
+        paymentY += 5
+      })
+    }
+  }
 
   // Notes
   if (data.notes) {
+    const notesStartY =
+      data.showPaymentInfo && data.paymentMethods.filter((m) => m.enabled).length > 0
+        ? totalY + 35 + data.paymentMethods.filter((m) => m.enabled).length * 5 + 10
+        : totalY + 20
+
+    doc.setTextColor(COLORS.text)
     doc.setFont("helvetica", "bold")
     doc.setFontSize(12)
-    doc.text("Additional Notes:", 20, totalY + 55)
+    doc.text("Additional Notes:", 20, notesStartY)
 
     doc.setFont("helvetica", "normal")
     doc.setFontSize(10)
     const splitNotes = doc.splitTextToSize(data.notes, 170)
-    doc.text(splitNotes, 20, totalY + 63)
+    doc.text(splitNotes, 20, notesStartY + 8)
   }
 
   // Footer

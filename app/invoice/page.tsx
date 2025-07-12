@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, Receipt, ArrowLeft } from "lucide-react"
+import { Trash2, Plus, Receipt, ArrowLeft, CreditCard } from "lucide-react"
 import Link from "next/link"
 import { generateInvoicePDF } from "@/lib/pdf-generator"
 import SecurityGate from "@/components/security-gate"
@@ -19,6 +19,14 @@ interface InvoiceItem {
   quantity: number
   unitPrice: number
   amount: number
+}
+
+interface PaymentMethod {
+  id: string
+  type: string
+  label: string
+  details: string
+  enabled: boolean
 }
 
 interface InvoiceData {
@@ -37,6 +45,8 @@ interface InvoiceData {
   taxLabel: string
   tax: number
   total: number
+  showPaymentInfo: boolean
+  paymentMethods: PaymentMethod[]
 }
 
 export default function InvoicePage() {
@@ -56,6 +66,14 @@ export default function InvoicePage() {
     taxLabel: "Tax",
     tax: 0,
     total: 0,
+    showPaymentInfo: true,
+    paymentMethods: [
+      { id: "1", type: "paypal", label: "PayPal", details: "jhbridgetranslation@gmail.com", enabled: true },
+      { id: "2", type: "zelle", label: "Zelle", details: "+1 (774) 223 8771", enabled: false },
+      { id: "3", type: "venmo", label: "Venmo", details: "@jhbridge", enabled: false },
+      { id: "4", type: "wire", label: "Wire Transfer", details: "Contact us for banking details", enabled: false },
+      { id: "5", type: "check", label: "Check", details: "Make payable to JH Bridge Translation", enabled: false },
+    ],
   })
 
   const [isGenerating, setIsGenerating] = useState(false)
@@ -111,6 +129,34 @@ export default function InvoicePage() {
         }
         return item
       }),
+    }))
+  }
+
+  const addPaymentMethod = () => {
+    const newPaymentMethod: PaymentMethod = {
+      id: Date.now().toString(),
+      type: "custom",
+      label: "",
+      details: "",
+      enabled: false,
+    }
+    setInvoiceData((prev) => ({
+      ...prev,
+      paymentMethods: [...prev.paymentMethods, newPaymentMethod],
+    }))
+  }
+
+  const removePaymentMethod = (id: string) => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      paymentMethods: prev.paymentMethods.filter((method) => method.id !== id),
+    }))
+  }
+
+  const updatePaymentMethod = (id: string, field: keyof PaymentMethod, value: string | boolean) => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      paymentMethods: prev.paymentMethods.map((method) => (method.id === id ? { ...method, [field]: value } : method)),
     }))
   }
 
@@ -408,6 +454,100 @@ export default function InvoicePage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Payment Methods */}
+          <Card className="mt-8">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Payment Methods
+                  </CardTitle>
+                  <CardDescription>Configure payment options for your invoice</CardDescription>
+                </div>
+                <Button onClick={addPaymentMethod} variant="outline" size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Method
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2 mb-4">
+                <Checkbox
+                  id="showPaymentInfo"
+                  checked={invoiceData.showPaymentInfo}
+                  onCheckedChange={(checked) =>
+                    setInvoiceData((prev) => ({ ...prev, showPaymentInfo: checked as boolean }))
+                  }
+                />
+                <Label htmlFor="showPaymentInfo" className="font-medium">
+                  Show payment information in PDF
+                </Label>
+              </div>
+
+              {invoiceData.showPaymentInfo && (
+                <div className="space-y-4">
+                  {invoiceData.paymentMethods.map((method) => (
+                    <div key={method.id} className="grid grid-cols-12 gap-4 items-end p-4 border rounded-lg">
+                      <div className="col-span-1">
+                        <Checkbox
+                          checked={method.enabled}
+                          onCheckedChange={(checked) => updatePaymentMethod(method.id, "enabled", checked as boolean)}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Label>Payment Type</Label>
+                        <Select
+                          value={method.type}
+                          onValueChange={(value) => updatePaymentMethod(method.id, "type", value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="paypal">PayPal</SelectItem>
+                            <SelectItem value="zelle">Zelle</SelectItem>
+                            <SelectItem value="venmo">Venmo</SelectItem>
+                            <SelectItem value="wire">Wire Transfer</SelectItem>
+                            <SelectItem value="check">Check</SelectItem>
+                            <SelectItem value="crypto">Cryptocurrency</SelectItem>
+                            <SelectItem value="custom">Custom</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-3">
+                        <Label>Label</Label>
+                        <Input
+                          value={method.label}
+                          onChange={(e) => updatePaymentMethod(method.id, "label", e.target.value)}
+                          placeholder="Payment method name"
+                        />
+                      </div>
+                      <div className="col-span-4">
+                        <Label>Details</Label>
+                        <Input
+                          value={method.details}
+                          onChange={(e) => updatePaymentMethod(method.id, "details", e.target.value)}
+                          placeholder="Payment details (email, phone, account, etc.)"
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removePaymentMethod(method.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Notes */}
           <Card className="mt-8">
